@@ -1,5 +1,6 @@
 const Redis = require('ioredis');
 const logger = require('../utils/logger');
+const { incDiscarded } = require('../api/metrics');
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
@@ -14,14 +15,14 @@ async function enqueue(params) {
   const size = await redis.llen(QUEUE_KEY);
 
   if (size >= QUEUE_MAX_SIZE) {
+    incDiscarded();
     logger.warn(`Fila cheia (${size}). Job descartado.`);
-    // fallback simples: resposta cacheada
-    return { 
-      id: null, 
-      params, 
-      status: 'DROPPED', 
-      reason: 'queue_full', 
-      cached: { score: 0, message: "Fallback response (fila cheia)" }
+    return {
+      id: null,
+      params,
+      status: 'DROPPED',
+      reason: 'queue_full',
+      cached: { score: 0, message: 'Fallback response (fila cheia)' },
     };
   }
 

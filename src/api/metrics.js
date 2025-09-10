@@ -35,4 +35,8 @@ async function metrics(req, res) {
   res.end(await client.register.metrics());
 }
 
-module.exports = { metrics, updateQueueSize, incJobs, observeLatency };
+function incDiscarded() {
+  jobsTotal.inc({ status: 'dropped' });
+}
+
+module.exports = { metrics, updateQueueSize, incJobs, observeLatency, incDiscarded };

@@ -9,41 +9,40 @@
 ## 📌 Contexto
 
 Este projeto consiste em criar um **proxy interno** para consumir a API pública  
-[`https://score.hsborges.dev/docs`](https://score.hsborges.dev/docs).  
+[`https://score.hsborges.dev/docs`](https://score.hsborges.dev/docs).
 
-O proxy deve lidar com **rate limiting** imposto pelo provedor externo:
+O proxy precisa lidar com **rate limiting** imposto pelo provedor externo:
 
-- ⏱️ **Rate limit externo:** 1 requisição por segundo.  
-- ⚠️ **Penalidade:** +2 segundos ao violar o limite.  
-- 🎯 **Objetivo:** lidar com picos internos, **minimizar penalidades** e **expor métricas**.  
-- 📑 **Swagger**: utilizado para **documentar e testar os endpoints**.
+- ⏱️ **Rate limit externo:** 1 requisição por segundo.
+- ⚠️ **Penalidade:** +2 segundos ao violar o limite.
+- 🎯 **Objetivo:** absorver picos internos, minimizar penalidades e expor métricas de monitoramento.
+- 📑 **Swagger**: utilizado para documentar e testar os endpoints internos.
 
 ---
 
 ## ✅ Requisitos Funcionais
 
-- `GET /proxy/score` → encaminhar requisições.  
-- `GET /metrics` → expor métricas de uso.  
-- `GET /health` → healthcheck (liveness/readiness).  
+- `GET /proxy/score` → encaminhar requisições ao upstream (aceita apenas **cpf**).
+- `GET /metrics` → expor métricas para Prometheus.
+- `GET /health` → healthcheck (liveness/readiness).
 
 ---
 
 ## ⚙️ Requisitos Não Funcionais
 
-- Suportar rajadas de até **20 req/s**.  
-- Evitar penalidades recorrentes.  
-- Throughput próximo de **1 req/s estável**.  
-- Logs, métricas e dashboards para monitoramento.  
+- Suportar rajadas de até **20 req/s**.
+- Garantir throughput estável de **1 req/s** para o upstream.
+- Evitar penalidades recorrentes.
+- Logs estruturados, métricas detalhadas e dashboards.
 
 ---
 
 ## 🏗️ Arquitetura
 
-- **Proxy Service** com fila interna (backpressure).  
-- **Scheduler** garante emissão máxima de **1 req/s**.  
-- **Políticas de fila**: FIFO, prioridade, TTL.  
-- **Fallback**: cache, shed load.  
-- **Observabilidade**: métricas, logs estruturados e dashboards.  
+- **Proxy Service** com fila no Redis (backpressure).
+- **Scheduler** garante emissão máxima de **1 req/s**.
+- **Fallback**: shed load (descartar requisições quando a fila encher) + resposta cacheada.
+- **Observabilidade**: métricas Prometheus, logs estruturados (Winston) e dashboards Grafana.
 
 ---
 
@@ -51,17 +50,16 @@ O proxy deve lidar com **rate limiting** imposto pelo provedor externo:
 
 ```mermaid
 flowchart LR
-    subgraph Empresa [Ambiente Interno]
-        C1[Cliente Interno 1]
-        C2[Cliente Interno 2]
-        CN[Cliente Interno N]
+    subgraph Interno [Clientes Internos]
+        C1[Cliente 1]
+        C2[Cliente 2]
+        CN[Cliente N]
     end
 
-    subgraph Proxy["Proxy Service"]
-        Fila[Buffer / Fila]
-        Scheduler[Scheduler / RateLimiter]
+    subgraph Proxy["Proxy Interno"]
+        Fila[Redis - Fila de Jobs]
+        Scheduler[Scheduler - RateLimiter]
         Metrics[Métricas & Health]
-        DB[(Prisma DB)]
     end
 
     API[API Externa<br>score.hsborges.dev]
@@ -74,116 +72,111 @@ flowchart LR
     Scheduler --> API
 
     Proxy --> Metrics
-    Proxy --> DB
 ```
 
-## Decisões de Design e Padrões Utilizados
+## 🛠️ Tecnologias e Padrões
 
-- **Express** para API HTTP.
-- **Redis** para fila (buffer) e cache (opcional).
-- **Prisma** como ORM, Singleton para conexão.
-- **prom-client** para métricas Prometheus.
-- **Swagger (OpenAPI)** para documentação automática.
-- **Winston** para logs estruturados.
-- **Padrão Singleton** para Prisma e Redis.
-- **Separação de responsabilidades**: controllers, services, jobs, middlewares.
-- **Scheduler** com rate limit (1 req/s) e penalidade.
-- **Política de fila FIFO** (pode ser expandida para prioridade/TTL).
-- **Fallback**: shed load ou cache se fila crescer demais.
+- **Express** → API HTTP.
+- **Redis** → fila de requisições.
+- **prom-client** → métricas Prometheus.
+- **Swagger (OpenAPI)** → documentação da API.
+- **Winston** → logs estruturados em JSON.
+- **Padrão Singleton** → conexão Redis.
+- **Separação de responsabilidades** → controllers, services e jobs.
 
-## Como Rodar
+## 🚀 Como Rodar
 
 ### Pré-requisitos
-- Node.js >= 18
-- Redis (local ou Docker)
-- (Opcional) Docker Compose
 
-### Variáveis de Ambiente (.env)
-```
-PORT=3000
-REDIS_URL=redis://localhost:6379
-DATABASE_URL="file:./dev.db"
-```
+- **Node.js** versão 18 ou superior
+- **Redis** (pode ser uma instância local ou executada via Docker)
+- _(Opcional)_ **Prometheus** e **Grafana** para monitoramento e dashboards
 
-### Subindo com Docker Compose
-```yaml
-version: '3.8'
-services:
-    redis:
-        image: redis:7
-        ports:
-            - "6379:6379"
-    proxy:
-        build: .
-        ports:
-            - "3000:3000"
-        env_file:
-            - .env
-        depends_on:
-            - redis
-```
-
-### Rodando Localmente
-```sh
+## Rodando Localmente
+```bash
 npm install
-npx prisma migrate dev --name init
 npm start
-# ou com nodemon
-npx nodemon src/index.js
+# ou, para ambiente de desenvolvimento:
+npm run dev
 ```
 
-### Seed de Testes
-Implemente seeds em `prisma/seed.js` e rode:
-```sh
-npx prisma db seed
-```
-
-## Endpoints Internos
+## 🔗 Endpoints Internos
 
 ### 1. Enfileirar requisição para o upstream
-**GET /proxy/score**
 
-Exemplo:
-```sh
-curl "http://localhost:3000/proxy/score?cpf=12345678900&nome=Joao"
+#### `GET /proxy/score`
+
+Enfileira uma requisição para consulta de score no upstream, respeitando o rate limit externo.
+
+**Parâmetros:**
+
+| Nome | Tipo   | Obrigatório | Descrição                |
+|------|--------|-------------|--------------------------|
+| cpf  | string | Sim         | CPF (somente dígitos)    |
+
+**Exemplo de requisição:**
+
 ```
-Resposta:
-```json
-{
-    "message": "Requisição enfileirada",
-    "jobId": 1
-}
+GET /proxy/score?cpf=12345678901
 ```
+
+**Respostas possíveis:**
+
+- `200 OK`: Score retornado com sucesso.
+- `400 Bad Request`: Parâmetro `cpf` ausente ou inválido.
+- `429 Too Many Requests`: Fila cheia, requisição descartada.
+- `500 Internal Server Error`: Erro interno ao processar.
+
+**Observações:**  
+- O endpoint aceita apenas CPFs válidos (apenas dígitos).
+- Caso a fila esteja cheia, a requisição será descartada para evitar sobrecarga.
+
 
 ### 2. Métricas Prometheus
-**GET /metrics**
 
-Exemplo:
-```sh
-curl http://localhost:3000/metrics
+#### `GET /metrics`
+
+Exibe métricas no formato Prometheus para monitoramento do proxy, fila, latência, taxa de erros e throughput.
+
+**Exemplo de requisição:**
+```
+GET /metrics
 ```
 
-### 3. Healthcheck
-**GET /health**
-
-Exemplo:
-```sh
-curl http://localhost:3000/health
-```
-Resposta:
-```json
-{
-    "status": "ok",
-    "uptime": 123.45,
-    "timestamp": "2025-09-09T12:34:56.789Z"
-}
-```
-
-### 4. Swagger (Documentação Interativa)
-**GET /api-docs**
-
-Acesse no navegador: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
+**Resposta:**  
+Conteúdo em texto no formato Prometheus.
 
 ---
 
-> Para exemplos de uso com Postman/Insomnia, importe a collection via Swagger em /api-docs.
+### 3. Healthcheck
+
+#### `GET /health`
+
+Verifica o status de saúde do serviço (liveness/readiness).
+
+**Exemplo de requisição:**
+```
+GET /health
+```
+
+**Resposta:**  
+- `200 OK`: Serviço saudável.
+- `503 Service Unavailable`: Algum componente indisponível.
+
+---
+
+### 4. Swagger (Documentação Interativa)
+
+#### `GET /api-docs`
+
+Acesse a documentação interativa dos endpoints via Swagger:
+
+[http://localhost:3000/api-docs](http://localhost:3000/api-docs)
+
+---
+
+## 📊 Observabilidade
+
+- **Prometheus** coleta métricas do endpoint `/metrics`.
+- **Grafana** exibe dashboards para fila, taxa de erros e latência.
+- **Logs JSON estruturados** permitem integração com ELK/Graylog.

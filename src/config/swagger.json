@@ -8,22 +8,15 @@
   "paths": {
     "/proxy/score": {
       "get": {
-        "summary": "Enfileira requisição para o upstream /score",
-        "description": "Aceita parâmetros da chamada para o upstream e enfileira a requisição.",
+        "summary": "Enfileira requisição para o upstream /api/score",
+        "description": "Aceita apenas o parâmetro `cpf` e enfileira a requisição para o upstream.",
         "parameters": [
           {
             "name": "cpf",
             "in": "query",
-            "description": "CPF do usuário",
-            "required": false,
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "nome",
-            "in": "query",
-            "description": "Nome do usuário",
-            "required": false,
-            "schema": { "type": "string" }
+            "description": "CPF do usuário (somente dígitos)",
+            "required": true,
+            "schema": { "type": "string", "example": "05227892180" }
           }
         ],
         "responses": {
@@ -41,8 +34,14 @@
               }
             }
           },
+          "400": {
+            "description": "Requisição inválida (faltando parâmetro obrigatório ou CPF inválido)"
+          },
+          "503": {
+            "description": "Requisição descartada (fila cheia)"
+          },
           "500": {
-            "description": "Erro ao enfileirar requisição"
+            "description": "Erro interno ao enfileirar requisição"
           }
         }
       }

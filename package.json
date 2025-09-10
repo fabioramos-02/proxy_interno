@@ -6,11 +6,12 @@
   "scripts": {
     "start": "nodemon src/index.js",
     "test": "jest"
-    },
+  },
   "author": "Fabio Ramos",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.15.0",
+    "axios": "^1.11.0",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "ioredis": "^5.7.0",
