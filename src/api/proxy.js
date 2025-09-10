@@ -1,4 +1,4 @@
-const queueService = require('../services/queueService');
+const queueService = require("../services/queueService");
 
 // GET /proxy/score
 async function proxyScore(req, res) {
@@ -8,11 +8,16 @@ async function proxyScore(req, res) {
 
     // Enfileira a requisição (pode incluir usuário, prioridade, etc)
     const job = await queueService.enqueue(params);
+    if (job.status === "DROPPED") {
+      return res.status(503).json(job); // 503 Service Unavailable
+    }
 
     // Retorna um status de aceito e um id para acompanhamento (padrão async)
-    res.status(202).json({ message: 'Requisição enfileirada', jobId: job.id });
+    res.status(202).json({ message: "Requisição enfileirada", jobId: job.id });
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao enfileirar requisição', details: err.message });
+    res
+      .status(500)
+      .json({ error: "Erro ao enfileirar requisição", details: err.message });
   }
 }
 

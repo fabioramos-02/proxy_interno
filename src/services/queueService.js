@@ -8,21 +8,34 @@ const redis = new Redis({
 
 let jobId = 0;
 const QUEUE_KEY = 'proxy_queue';
+const QUEUE_MAX_SIZE = parseInt(process.env.QUEUE_MAX_SIZE) || 100;
 
 async function enqueue(params) {
+  const size = await redis.llen(QUEUE_KEY);
+
+  if (size >= QUEUE_MAX_SIZE) {
+    logger.warn(`Fila cheia (${size}). Job descartado.`);
+    // fallback simples: resposta cacheada
+    return { 
+      id: null, 
+      params, 
+      status: 'DROPPED', 
+      reason: 'queue_full', 
+      cached: { score: 0, message: "Fallback response (fila cheia)" }
+    };
+  }
+
   const job = { id: ++jobId, params, createdAt: Date.now() };
   await redis.lpush(QUEUE_KEY, JSON.stringify(job));
   logger.info(`Job enqueued: ${JSON.stringify(job)}`);
   return job;
 }
 
-// Retira próximo job da fila
 async function dequeue() {
   const data = await redis.rpop(QUEUE_KEY);
   return data ? JSON.parse(data) : null;
 }
 
-// Pega tamanho atual da fila
 async function size() {
   return await redis.llen(QUEUE_KEY);
 }
