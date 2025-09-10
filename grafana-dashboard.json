@@ -1,0 +1,55 @@
+{
+  "id": null,
+  "title": "Proxy Interno - Dashboard",
+  "tags": ["proxy", "tads", "ufms"],
+  "timezone": "browser",
+  "schemaVersion": 30,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Tamanho da Fila",
+      "targets": [
+        {
+          "expr": "proxy_queue_size",
+          "legendFormat": "Fila"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "type": "graph",
+      "title": "Jobs por Status",
+      "targets": [
+        {
+          "expr": "proxy_jobs_total",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": { "x": 6, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "type": "graph",
+      "title": "Latência dos Jobs (segundos)",
+      "targets": [
+        {
+          "expr": "rate(proxy_job_latency_seconds_sum[1m]) / rate(proxy_job_latency_seconds_count[1m])",
+          "legendFormat": "Latência média"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 }
+    },
+    {
+      "type": "stat",
+      "title": "Penalidades Evitadas",
+      "targets": [
+        {
+          "expr": "proxy_penalties_avoided_total",
+          "legendFormat": "Evitadas"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 }
+    }
+  ]
+}
