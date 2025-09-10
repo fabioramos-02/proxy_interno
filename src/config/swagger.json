@@ -46,6 +46,47 @@
           }
         }
       }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Expor métricas Prometheus",
+        "description": "Retorna métricas no formato Prometheus para monitoramento.",
+        "responses": {
+          "200": {
+            "description": "Métricas Prometheus",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Healthcheck do serviço",
+        "description": "Retorna o status de saúde do serviço.",
+        "responses": {
+          "200": {
+            "description": "Serviço saudável",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "uptime": { "type": "number", "example": 123.45 },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
