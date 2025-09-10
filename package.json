@@ -1,0 +1,15 @@
+{
+  "name": "proxy_interno",
+  "version": "1.0.0",
+  "description": "serviço de **proxy interno** para consumir a API pública",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Fabio Ramos",
+  "license": "ISC",
+  "dependencies": {
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  }
+}
