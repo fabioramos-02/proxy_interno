@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Proxy Interno API",
+    "version": "1.0.0",
+    "description": "Documentação da API do Proxy Interno"
+  },
+  "paths": {
+    "/proxy/score": {
+      "get": {
+        "summary": "Enfileira requisição para o upstream /score",
+        "description": "Aceita parâmetros da chamada para o upstream e enfileira a requisição.",
+        "parameters": [
+          {
+            "name": "cpf",
+            "in": "query",
+            "description": "CPF do usuário",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "nome",
+            "in": "query",
+            "description": "Nome do usuário",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Requisição enfileirada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "jobId": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro ao enfileirar requisição"
+          }
+        }
+      }
+    }
+  }
+}
