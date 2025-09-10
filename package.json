@@ -4,6 +4,7 @@
   "description": "serviço de **proxy interno** para consumir a API pública",
   "main": "index.js",
   "scripts": {
+    "start": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Fabio Ramos",

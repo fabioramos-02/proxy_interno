@@ -1,5 +1,4 @@
-
-console.log('Acesse a documentação da API em: http://localhost:3000/api-docs');
+require('dotenv').config();
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./config/swagger.json');
@@ -27,3 +26,10 @@ console.log('Documentação da API disponível em: http://localhost:3000/api-doc
 app.get('/', (req, res) => {
     res.redirect('/api-docs');
 });
+
+module.exports = {
+  QUEUE_MAX_SIZE: parseInt(process.env.QUEUE_MAX_SIZE) || 100,
+  RETRY_LIMIT: parseInt(process.env.RETRY_LIMIT) || 3,
+  TIMEOUT_MS: parseInt(process.env.TIMEOUT_MS) || 5000,
+  CIRCUIT_BREAKER_THRESHOLD: parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD) || 5
+};
