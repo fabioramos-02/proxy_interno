@@ -2,7 +2,8 @@ const axios = require("axios");
 const request = require("supertest");
 const app = require("../src/app");
 
-const UPSTREAM_URL = "https://score.hsborges.dev/api/score";
+const UPSTREAM_URL = process.env.UPSTREAM_URL ||
+  "https://score.hsborges.dev/api/score";
 
 describe("Teste de Penalidade Proposital", () => {
   jest.setTimeout(20000);
