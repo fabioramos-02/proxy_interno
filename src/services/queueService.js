@@ -1,6 +1,6 @@
 const Redis = require('ioredis');
 const logger = require('../utils/logger');
-const { incrementarDescartados } = require('../api/metrics');
+const { incrementarDescartados, incrementarJobs } = require('../api/metrics');
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
@@ -89,6 +89,9 @@ async function enqueue(params, options = {}) {
     expiresAt: now + Math.max(0, ttlMs),
   };
   await redis.lpush(keyFor(priority), JSON.stringify(job));
+  try {
+    incrementarJobs('accepted');
+  } catch (_) {}
   logger.info(`Job enqueued: ${JSON.stringify(job)}`);
   return job;
 }
