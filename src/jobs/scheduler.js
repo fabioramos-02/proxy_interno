@@ -138,7 +138,7 @@ async function processQueue() {
     incrementarJobs("processed");
     observarLatencia((Date.now() - start) / 1000);
 
-    logger.info(`[Scheduler] Job processado`, { jobId: job.id });
+    logger.info(`[Scheduler] Job processado: ${job.id}`);
 
     // Se estava em penalidade, volta para 1s
     if (interval > 1000) adjustScheduler(1000);
