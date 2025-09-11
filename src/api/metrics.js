@@ -1,62 +1,52 @@
-const client = require("prom-client");
+// src/api/metrics.js
+const client = require('prom-client');
 
-// =============================
-// MÉTRICAS
-// =============================
-
-// Tamanho da fila
+// Fila
 const queueSizeGauge = new client.Gauge({
-  name: "proxy_queue_size",
-  help: "Tamanho atual da fila de requisições",
+  name: 'proxy_queue_size',
+  help: 'Tamanho atual da fila de requisições',
 });
 
-// Total de jobs por status (accepted, dropped, processed, failed)
+// Jobs por status (accepted/dropped/processed/failed)
 const jobsTotal = new client.Counter({
-  name: "proxy_jobs_total",
-  help: "Total de jobs enfileirados, processados ou descartados",
-  labelNames: ["status"],
+  name: 'proxy_jobs_total',
+  help: 'Total de jobs enfileirados, processados ou descartados',
+  labelNames: ['status'],
 });
 
-// Latência do processamento de jobs
+// Latência dos jobs
 const latencyHistogram = new client.Histogram({
-  name: "proxy_job_latency_seconds",
-  help: "Latência de processamento dos jobs",
+  name: 'proxy_job_latency_seconds',
+  help: 'Latência de processamento dos jobs',
   buckets: [0.1, 0.5, 1, 2, 3, 5],
 });
 
-// Penalidades evitadas pelo proxy
+// Penalidades evitadas
 const penaltiesAvoided = new client.Counter({
-  name: "proxy_penalties_avoided_total",
-  help: "Total de penalidades evitadas pelo proxy",
+  name: 'proxy_penalties_avoided_total',
+  help: 'Total de penalidades evitadas pelo proxy',
 });
 
-// =============================
-// FUNÇÕES AUXILIARES
-// =============================
-
+// Funções auxiliares
 function updateQueueSize(size) {
   queueSizeGauge.set(size);
 }
-
 function incJobs(status) {
   jobsTotal.inc({ status });
 }
-
 function observeLatency(seconds) {
   latencyHistogram.observe(seconds);
 }
-
 function incDiscarded() {
-  jobsTotal.inc({ status: "dropped" });
+  jobsTotal.inc({ status: 'dropped' });
 }
-
 function incPenaltiesAvoided() {
   penaltiesAvoided.inc();
 }
 
-// Endpoint para expor métricas
+// Endpoint de métricas
 async function metrics(req, res) {
-  res.set("Content-Type", client.register.contentType);
+  res.set('Content-Type', client.register.contentType);
   res.end(await client.register.metrics());
 }
 

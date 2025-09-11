@@ -1,6 +1,9 @@
 const request = require("supertest");
 const app = require("../src/app"); // agora importa só o app
 
+//comando para rodar o teste:
+// npx jest --runInBand --testTimeout=30000 tests/burst.test.js
+
 describe("Burst Test - 20 requisições em 1s", () => {
   it("deve enfileirar 20 requisições rapidamente e manter throughput de 1/s", async () => {
     const start = Date.now();
