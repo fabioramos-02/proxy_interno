@@ -35,7 +35,7 @@
             }
           },
           "400": {
-            "description": "Requisição inválida (faltando parâmetro obrigatório ou CPF inválido)"
+            "description": "Requisição inválida (faltando parâmetro obrigatório)"
           },
           "503": {
             "description": "Requisição descartada (fila cheia)"
@@ -49,15 +49,13 @@
     "/metrics": {
       "get": {
         "summary": "Expor métricas Prometheus",
-        "description": "Retorna métricas no formato Prometheus para monitoramento.",
+        "description": "Retorna métricas no formato Prometheus para monitoramento. Principais séries: proxy_queue_size, proxy_jobs_total{status}, proxy_job_latency_seconds, proxy_penalties_avoided_total, proxy_scheduler_interval_ms, proxy_rate_limit_penalties_total, proxy_timeouts_total, proxy_upstream_errors_total{code}, proxy_fallbacks_total{motivo}, proxy_circuit_state, proxy_circuit_open_total, proxy_circuit_close_total, proxy_circuit_half_open_total.",
         "responses": {
           "200": {
-            "description": "Métricas Prometheus",
+            "description": "Métricas Prometheus (text/plain)",
             "content": {
               "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               }
             }
           }
@@ -89,3 +87,4 @@
     }
   }
 }
+
