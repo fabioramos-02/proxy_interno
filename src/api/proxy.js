@@ -1,6 +1,6 @@
 // src/api/proxy.js
 const queueService = require('../services/queueService');
-const { incPenaltiesAvoided } = require('./metrics');
+const { incrementarPenalidadesEvitadas } = require('./metrics');
 
 async function proxyScore(req, res) {
   try {
@@ -17,7 +17,7 @@ async function proxyScore(req, res) {
     }
 
     // registra penalidade evitada
-    incPenaltiesAvoided();
+    incrementarPenalidadesEvitadas();
 
     return res.status(202).json({ message: 'Requisição enfileirada', jobId: job.id });
   } catch (err) {

@@ -1,6 +1,6 @@
 const Redis = require('ioredis');
 const logger = require('../utils/logger');
-const { incDiscarded } = require('../api/metrics');
+const { incrementarDescartados } = require('../api/metrics');
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
@@ -15,7 +15,7 @@ async function enqueue(params) {
   const size = await redis.llen(QUEUE_KEY);
 
   if (size >= QUEUE_MAX_SIZE) {
-    incDiscarded();
+    incrementarDescartados();
     logger.warn(`Fila cheia (${size}). Job descartado.`);
     return {
       id: null,

@@ -2,9 +2,9 @@
 const axios = require("axios");
 const queueService = require("../services/queueService");
 const {
-  updateQueueSize,
-  incJobs,
-  observeLatency,
+  atualizarTamanhoFila,
+  incrementarJobs,
+  observarLatencia,
 } = require("../api/metrics");
 
 const client = require("prom-client");
@@ -45,15 +45,15 @@ async function processQueue() {
       },
     });
 
-    incJobs("processed");
-    observeLatency((Date.now() - start) / 1000);
+    incrementarJobs("processed");
+    observarLatencia((Date.now() - start) / 1000);
 
     console.log(`[Scheduler] Job ${job.id} processado`, response.data);
 
     // 🔹 Se estava em penalidade, volta para 1s
     if (interval > 1000) adjustScheduler(1000);
   } catch (err) {
-    incJobs("failed");
+    incrementarJobs("failed");
 
     const status = err.response?.status;
     console.error(
@@ -70,7 +70,7 @@ async function processQueue() {
 // 🔹 Atualiza a métrica do tamanho da fila
 setInterval(async () => {
   const size = await queueService.size();
-  updateQueueSize(size);
+  atualizarTamanhoFila(size);
 }, 2000);
 
 module.exports = { processQueue };
