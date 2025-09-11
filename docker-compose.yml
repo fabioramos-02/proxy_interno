@@ -5,6 +5,11 @@ services:
     ports:
       - "3000:3000"
     env_file: .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
 
   prometheus:
     image: prom/prometheus
@@ -21,3 +26,8 @@ services:
       - "3001:3000"
     depends_on:
       - prometheus
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
