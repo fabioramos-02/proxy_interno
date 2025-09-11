@@ -94,6 +94,7 @@ Variaveis relevantes ao scheduler, rate limit e circuit breaker:
 - BREAKER_OPEN_WINDOW_MS: janela com breaker aberto, evitando novas tentativas, em ms (default: 10000)
 - SCHEDULER_INITIAL_INTERVAL_MS: intervalo inicial do scheduler em ms (default: 1000)
 - QUEUE_MAX_SIZE: tamanho maximo da fila (default: 100)
+- JOB_TTL_MS: TTL maximo (ms) que um job pode aguardar na fila antes de ser descartado (default: 10000)
 - REDIS_HOST / REDIS_PORT: conexao do Redis
 
 Exemplo no .env:
@@ -106,6 +107,7 @@ BREAKER_OPEN_WINDOW_MS=10000
 SCHEDULER_INITIAL_INTERVAL_MS=1000
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
+JOB_TTL_MS=10000
 ```
 
 ## 4. Observabilidade (RNF5)
@@ -130,4 +132,3 @@ Logs (Winston) relevantes:
 - [Breaker] ABERTO / MEIA-ABERTURA / FECHADO: transicoes do circuit breaker
 - [Breaker] Curto-circuito: quando evita chamadas durante a janela aberta
 - [Scheduler] Job processado / Erro no job: sucesso e erros ao chamar o upstream
-
