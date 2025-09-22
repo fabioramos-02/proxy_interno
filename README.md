@@ -1,19 +1,19 @@
-# 🛡️ Desafio — Proxy Interno
+﻿# 🛡️ Desafio — Proxy Interno
 
-📚 **Trabalho de TADS — Engenharia de Software**  
+📚 **Técnicas Avançadas de Desenvolvimento de Software TADS — Engenharia de Software**  
 🎓 **Universidade Federal de Mato Grosso do Sul (UFMS)**  
-👨‍🎓 Acadêmico: **Fábio Ramos**
+👨‍🎓 Acadêmico: **Fabio Ramos**
 
----
+## Proxy Interno
 
-Projeto de proxy interno para consumir a API pública de score, respeitando rate limit externo e expondo métricas e logs para auditoria.
+Projeto de proxy interno desenvolvido para a disciplina de Engenharia de Software (TADS/UFMS), com foco em absorver picos de requisicoes ao upstream de score, evitar penalidades de rate limit e expor sinais de observabilidade.
 
-Resumo
-- Rate limit externo: 1 req/s (penalidade +2s em caso de violação).
-- Objetivo: absorver picos internos, minimizar penalidades e expor observabilidade.
-- Endpoints: `/proxy/score`, `/metrics`, `/health`, `/api-docs` (Swagger).
+## Resumo do Problema
+- Rate limit imposto pelo provedor externo: 1 req/s (penalidade de +2s por violacao).
+- Objetivo: desacoplar clientes internos da API externa, minimizar penalidades e manter auditoria.
+- Funcionalidades principais: fila com prioridades, circuit breaker e **cache de respostas no Redis**.
 
-Arquitetura
+## Arquitetura
 ```mermaid
 flowchart LR
   subgraph Clients[Clientes Internos]
@@ -25,6 +25,7 @@ flowchart LR
   subgraph Proxy[Proxy Interno]
     Q[(Redis - Filas high/normal/low)]
     S[Scheduler / RateLimiter + Circuit Breaker]
+    C[Cache Redis]
     M[Metrics / Health]
   end
 
@@ -34,22 +35,20 @@ flowchart LR
   B --> Q
   N --> Q
   Q --> S --> Up
+  S --> C
   Proxy --> M
 ```
 
-Decisões de design e padrões
-- Fila em Redis com prioridades (high/normal/low) e TTL por job.
-- Preempção quando cheia: high remove low/normal; normal remove low; low descarta.
-- Scheduler com cadência dinâmica e circuit breaker (fechado/meia‑abertura/aberto) com timeout configurável.
-- Observabilidade: prom-client (métricas), Winston (logs JSON), dashboards Grafana.
-- Separação de camadas: API (controllers), services (fila), jobs (scheduler), utils (logger).
-- Config via .env com defaults sensatos (12‑factor style).
+## Padroes de Projeto
+- **Proxy Pattern**: o endpoint `/proxy/score` enfileira requisicoes internas e o scheduler envia para o upstream na cadencia permitida.
+- **Circuit Breaker**: estados fechado, meia-abertura e aberto controlam chamadas ao upstream em caso de falhas.
+- **Cache-aside**: respostas recentes sao gravadas no Redis; consultas verificam primeiro o cache e servem miss/hit conforme configuracao (TTL ajustavel).
 
-Como rodar
-Pré-requisitos
-- Docker e Docker Compose (recomendado) ou Node 18+ e Redis 7+
+## Executando o Projeto
+### Requisitos
+- Docker e Docker Compose (recomendado) ou Node 18+ e Redis 7+.
 
-Com Docker Compose
+### Docker Compose
 ```bash
 docker compose up --build -d
 # Proxy: http://localhost:3000
@@ -58,53 +57,56 @@ docker compose up --build -d
 # Grafana: http://localhost:3001
 ```
 
-Local (Node + Redis)
+### Modo desenvolvimento (nodemon)
+O script de desenvolvimento utiliza `nodemon` para reiniciar o processo a cada alteracao em arquivos da pasta `src/`.
+```bash
+npm install
+npm run dev
+```
+- Usa as variaveis de ambiente definidas no `.env`.
+- Reinicia automaticamente quando um arquivo monitorado muda.
+
+### Ambiente local (Node + Redis)
 ```bash
 npm install
 export REDIS_HOST=127.0.0.1 REDIS_PORT=6379
 npm start
 ```
+`npm start` tambem roda com `nodemon`, permitindo hot reload mesmo fora do script `dev`.
 
-Variáveis de ambiente (principais)
-- UPSTREAM_URL: URL da API externa (default: https://score.hsborges.dev/api/score)
-- QUEUE_MAX_SIZE: capacidade total da fila (default: 100)
-- JOB_TTL_MS: TTL do job na fila (ms, default: 10000)
-- REQUEST_TIMEOUT_MS: timeout por chamada ao upstream (ms, default: 3000)
-- BREAKER_FAILURE_THRESHOLD: falhas para abrir o breaker (default: 3)
-- BREAKER_OPEN_WINDOW_MS: janela com breaker aberto (ms, default: 10000)
-- SCHEDULER_INITIAL_INTERVAL_MS: intervalo inicial do scheduler (ms, default: 1000)
-- REDIS_HOST / REDIS_PORT: conexão Redis (em Compose, `redis` / `6379`)
+### Variaveis de Ambiente (principais)
+- `UPSTREAM_URL`: URL da API externa (padrao: https://score.hsborges.dev/api/score)
+- `QUEUE_MAX_SIZE`: capacidade da fila (padrao: 100)
+- `JOB_TTL_MS`: TTL do job na fila, em ms (padrao: 10000)
+- `REQUEST_TIMEOUT_MS`: timeout por chamada ao upstream, em ms (padrao: 3000)
+- `BREAKER_FAILURE_THRESHOLD`: falhas seguidas para abrir o breaker (padrao: 3)
+- `BREAKER_OPEN_WINDOW_MS`: tempo com breaker aberto, em ms (padrao: 10000)
+- `SCHEDULER_INITIAL_INTERVAL_MS`: intervalo inicial do scheduler, em ms (padrao: 1000)
+- `REDIS_HOST` / `REDIS_PORT`: conexao Redis (no Compose: `redis` / `6379`)
+- `CACHE_TTL_SECONDS`: TTL do cache de respostas no Redis (padrao definido em `config.js`)
 
-Seed de testes
-- Testes usam Redis e mocks de axios; execute:
+## Testes
+Os testes utilizam Redis e mocks do axios.
 ```bash
+npm test
+# ou
 npx jest --runInBand
 ```
 
-Endpoints e exemplos
-- GET `/proxy/score` — enfileira requisição para upstream (aceita `cpf` válido)
-  - curl:
-    ```bash
-    curl "http://localhost:3000/proxy/score?cpf=05227892180"
-    ```
-  - Respostas: `202 Accepted` com `{ jobId }`; `400` inválido; `503` fila cheia.
+## Endpoints Principais
+- `GET /proxy/score`: enfileira a consulta de score. Responde `202` com `{ jobId }`, `400` para input invalido e `503` se a fila estiver cheia.
+- `GET /metrics`: exporta metrics em formato Prometheus (`Content-Type: text/plain`).
+- `GET /health`: healthcheck simples.
+- `GET /api-docs`: interface Swagger gerada a partir de `src/config/swagger.json`.
 
-- GET `/metrics` — métricas Prometheus
-  - curl: `curl -H "Accept: text/plain" http://localhost:3000/metrics`
+## Observabilidade
+- Metricas chave: `proxy_queue_size`, `proxy_jobs_total{status}`, `proxy_job_latency_seconds`, `proxy_circuit_state`, `proxy_rate_limit_penalties_total`, `proxy_fallbacks_total{motivo}`.
+- Logs estruturados com Winston em JSON, voltados para integracao com stack de observabilidade.
 
-- GET `/health` — healthcheck
-  - curl: `curl http://localhost:3000/health`
-
-- GET `/api-docs` — Swagger UI
-
-Observabilidade (principais métricas)
-- proxy_queue_size; proxy_jobs_total{status}; proxy_job_latency_seconds
-- proxy_penalties_avoided_total; proxy_scheduler_interval_ms
-- proxy_rate_limit_penalties_total; proxy_timeouts_total
-- proxy_upstream_errors_total{code}; proxy_fallbacks_total{motivo}
-- proxy_circuit_state; proxy_circuit_open_total/close_total/half_open_total
-
-Referências
-- docs/guia.md — guia do projeto
-- docs/fila_do_proxy.md — explicação da fila do proxy
+## Documentacao Complementar
+- `docs/relatorio_tecnico.md`: detalhamento tecnico completo do projeto.
+- `docs/fila_do_proxy.md`: funcionamento da fila com prioridades e politicas de preempcao.
+- `docs/guia.md`: guia rapido de operacao e monitoramento.
+- `docs/proxy_interno_resumo.md`: resumo executivo do desafio.
+- '
 

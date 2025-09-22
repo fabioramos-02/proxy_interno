@@ -66,3 +66,28 @@ Observação: hoje o endpoint público só aceita `cpf`, então as requisições
   // ou: await enqueue({ cpf: '05227892180', type: 'update' });
   ```
 
+## Cache de Respostas Recentes
+
+Além da fila, o proxy também utiliza **caching** em Redis para evitar chamadas repetidas ao upstream:
+
+- Cada resultado da API de score é armazenado com chave `cache:score:{cpf}` e TTL configurável (`CACHE_TTL_SEC`, default: 60s).
+- Antes de enviar uma chamada ao upstream, o scheduler consulta o cache:
+  - **Hit:** se o CPF já tem resultado recente, ele é retornado imediatamente sem chamar o upstream.
+  - **Miss:** se não existe no cache, a chamada é feita normalmente e o resultado armazenado.
+- Em caso de falha no upstream (timeout, breaker aberto, erro 5xx), o cache também pode ser usado como **fallback**.
+
+### Benefícios do cache
+- Reduz requisições redundantes ao provedor externo.
+- Minimiza penalidades por violar rate limit.
+- Melhora a latência percebida pelos clientes internos.
+- Aumenta a resiliência em cenários de indisponibilidade temporária.
+
+### Variáveis de ambiente relacionadas
+- `CACHE_TTL_SEC`: tempo de vida de cada entrada de cache em segundos (default: 60).
+- `REDIS_HOST` e `REDIS_PORT`: já utilizados para fila, também são usados para o cache.
+
+### Exemplo de uso prático
+1. Cliente A requisita `GET /proxy/score?cpf=05227892180`.  
+   → Resposta vem do upstream e é salva em cache.  
+2. Cliente B faz a mesma requisição logo em seguida.  
+   → Resposta vem do **cache**, sem custo para o upstream.
