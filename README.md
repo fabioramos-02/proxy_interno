@@ -102,10 +102,10 @@ npx jest --runInBand
 ## Observabilidade
 - Metricas chave: `proxy_queue_size`, `proxy_jobs_total{status}`, `proxy_job_latency_seconds`, `proxy_circuit_state`, `proxy_rate_limit_penalties_total`, `proxy_fallbacks_total{motivo}`.
 - Logs estruturados com Winston em JSON, voltados para integracao com stack de observabilidade.
-
 ## Documentacao Complementar
-- `docs/relatorio_tecnico.md`: detalhamento tecnico completo do projeto.
-- `docs/fila_do_proxy.md`: funcionamento da fila com prioridades e politicas de preempcao.
-- `docs/guia.md`: guia rapido de operacao e monitoramento.
-- `docs/proxy_interno_resumo.md`: resumo executivo do desafio.
+
+- [docs/relatorio_tecnico.md](docs/relatorio_tecnico.md): detalhamento tecnico completo do projeto.
+- [docs/fila_do_proxy.md](docs/fila_do_proxy.md): funcionamento da fila com prioridades e politicas de preempcao.
+- [docs/guia.md](docs/guia.md): guia rapido de operacao e monitoramento.
+- [docs/proxy_interno_resumo.md](docs/proxy_interno_resumo.md): resumo executivo do desafio.
 
