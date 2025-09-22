@@ -4,52 +4,87 @@
   "tags": ["proxy", "tads", "ufms"],
   "timezone": "browser",
   "schemaVersion": 30,
-  "version": 1,
+  "version": 2,
   "refresh": "5s",
   "panels": [
     {
       "type": "stat",
       "title": "Tamanho da Fila",
-      "targets": [
-        {
-          "expr": "proxy_queue_size",
-          "legendFormat": "Fila"
-        }
-      ],
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+      "targets": [ { "expr": "proxy_queue_size", "legendFormat": "Fila" } ],
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 }
     },
     {
-      "type": "graph",
-      "title": "Jobs por Status",
-      "targets": [
-        {
-          "expr": "proxy_jobs_total",
-          "legendFormat": "{{status}}"
-        }
-      ],
-      "gridPos": { "x": 6, "y": 0, "w": 12, "h": 8 }
+      "type": "stat",
+      "title": "Intervalo do Scheduler (ms)",
+      "targets": [ { "expr": "proxy_scheduler_interval_ms", "legendFormat": "interval" } ],
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 }
     },
     {
-      "type": "graph",
-      "title": "Latência dos Jobs (segundos)",
-      "targets": [
-        {
-          "expr": "rate(proxy_job_latency_seconds_sum[1m]) / rate(proxy_job_latency_seconds_count[1m])",
-          "legendFormat": "Latência média"
-        }
-      ],
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 }
+      "type": "stat",
+      "title": "Estado do Circuito",
+      "targets": [ { "expr": "proxy_circuit_state", "legendFormat": "state" } ],
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 }
     },
     {
       "type": "stat",
       "title": "Penalidades Evitadas",
+      "targets": [ { "expr": "proxy_penalties_avoided_total", "legendFormat": "evitadas" } ],
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Jobs por Status (rate)",
       "targets": [
-        {
-          "expr": "proxy_penalties_avoided_total",
-          "legendFormat": "Evitadas"
-        }
+        { "expr": "rate(proxy_jobs_total{status=\"accepted\"}[5m])", "legendFormat": "accepted" },
+        { "expr": "rate(proxy_jobs_total{status=\"processed\"}[5m])", "legendFormat": "processed" },
+        { "expr": "rate(proxy_jobs_total{status=\"failed\"}[5m])", "legendFormat": "failed" },
+        { "expr": "rate(proxy_jobs_total{status=\"dropped\"}[5m])", "legendFormat": "dropped" },
+        { "expr": "rate(proxy_jobs_total{status=\"fallback\"}[5m])", "legendFormat": "fallback" }
       ],
-      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 }
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Latência p50/p90/p99 (s)",
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum by (le) (rate(proxy_job_latency_seconds_bucket[5m])))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.9, sum by (le) (rate(proxy_job_latency_seconds_bucket[5m])))", "legendFormat": "p90" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(proxy_job_latency_seconds_bucket[5m])))", "legendFormat": "p99" }
+      ],
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Fallbacks por Motivo (rate)",
+      "targets": [ { "expr": "rate(proxy_fallbacks_total[5m])", "legendFormat": "{{motivo}}" } ],
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Erros Upstream por Código (rate)",
+      "targets": [ { "expr": "rate(proxy_upstream_errors_total[5m])", "legendFormat": "code={{code}}" } ],
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Penalidades / Timeouts (rate)",
+      "targets": [
+        { "expr": "rate(proxy_rate_limit_penalties_total[5m])", "legendFormat": "rate-limit (429)" },
+        { "expr": "rate(proxy_timeouts_total[5m])", "legendFormat": "timeouts" }
+      ],
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Estado do Circuito (timeline)",
+      "targets": [ { "expr": "proxy_circuit_state", "legendFormat": "state (0/0.5/1)" } ],
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 }
     }
   ]
 }
