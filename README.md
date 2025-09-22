@@ -108,5 +108,4 @@ npx jest --runInBand
 - `docs/fila_do_proxy.md`: funcionamento da fila com prioridades e politicas de preempcao.
 - `docs/guia.md`: guia rapido de operacao e monitoramento.
 - `docs/proxy_interno_resumo.md`: resumo executivo do desafio.
-- '
 
