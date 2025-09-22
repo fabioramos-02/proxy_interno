@@ -1,6 +1,7 @@
 // src/jobs/scheduler.js
 const axios = require("axios");
 const queueService = require("../services/queueService");
+const cacheService = require("../services/cacheService"); // <-- novo
 const logger = require("../utils/logger");
 const {
   atualizarTamanhoFila,
@@ -23,22 +24,12 @@ const schedulerIntervalGauge = new client.Gauge({
   help: "Intervalo atual do scheduler em ms",
 });
 
-// Configurações (via .env com defaults sensatos)
-const UPSTREAM_URL = process.env.UPSTREAM_URL ||
-  "https://score.hsborges.dev/api/score";
+// Configurações
+const UPSTREAM_URL = process.env.UPSTREAM_URL || "https://score.hsborges.dev/api/score";
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || "3000", 10);
-const BREAKER_FAILURE_THRESHOLD = parseInt(
-  process.env.BREAKER_FAILURE_THRESHOLD || "3",
-  10
-);
-const BREAKER_OPEN_WINDOW_MS = parseInt(
-  process.env.BREAKER_OPEN_WINDOW_MS || "10000",
-  10
-);
-const SCHEDULER_INITIAL_INTERVAL_MS = parseInt(
-  process.env.SCHEDULER_INITIAL_INTERVAL_MS || "1000",
-  10
-);
+const BREAKER_FAILURE_THRESHOLD = parseInt(process.env.BREAKER_FAILURE_THRESHOLD || "3", 10);
+const BREAKER_OPEN_WINDOW_MS = parseInt(process.env.BREAKER_OPEN_WINDOW_MS || "10000", 10);
+const SCHEDULER_INITIAL_INTERVAL_MS = parseInt(process.env.SCHEDULER_INITIAL_INTERVAL_MS || "1000", 10);
 
 // Intervalo dinâmico do scheduler
 let interval = SCHEDULER_INITIAL_INTERVAL_MS;
@@ -54,13 +45,13 @@ if (!(process.env.NODE_ENV === 'test' && process.env.SCHEDULER_FORCE_START !== '
 function adjustScheduler(newInterval) {
   if (timer) clearInterval(timer);
   interval = newInterval;
-  schedulerIntervalGauge.set(interval); // métrica Prometheus
+  schedulerIntervalGauge.set(interval);
   startTimer();
   logger.warn(`[Scheduler] Ajustando cadência`, { intervalMs: interval });
 }
 
-// Circuit Breaker (simples)
-let breakerState = "fechado"; // 'fechado' | 'aberto' | 'meia-abertura'
+// Circuit Breaker
+let breakerState = "fechado"; 
 let consecutiveFailures = 0;
 let openedAt = 0;
 let probeAllowed = false;
@@ -77,7 +68,7 @@ function openBreaker(motivo) {
 
 function toHalfOpen() {
   breakerState = "meia-abertura";
-  probeAllowed = true; // permite 1 tentativa
+  probeAllowed = true;
   setEstadoCircuito("meia-abertura");
   incCircuitoMeiaAbertura();
   logger.warn(`[Breaker] MEIA-ABERTURA`, { probe: true });
@@ -96,13 +87,24 @@ async function processQueue() {
   const job = await queueService.dequeue();
   if (!job) return;
 
+  const { cpf } = job.params || {};
+  if (!cpf) return;
+
   const start = Date.now();
+
   try {
-    // Se breaker está aberto, verifica janela
+    // 1. Verifica se já existe cache
+    const cached = await cacheService.getCache(cpf);
+    if (cached) {
+      incrementarJobs("cached");
+      logger.info(`[Scheduler] Resposta do cache para job ${job.id}`);
+      return;
+    }
+
+    // Se breaker está aberto
     if (breakerState === "aberto") {
       const elapsed = Date.now() - openedAt;
       if (elapsed < BREAKER_OPEN_WINDOW_MS) {
-        // evita chamada
         incCurtoCircuito();
         incFallback("breaker_aberto");
         incrementarJobs("fallback");
@@ -112,11 +114,6 @@ async function processQueue() {
       toHalfOpen();
     }
 
-    // Filtra apenas parâmetros válidos para o upstream
-    const params = {};
-    if (job.params?.cpf) params.cpf = job.params.cpf;
-
-    // Se meia-abertura e já usamos a prova, bloqueia novas tentativas até fechar/abrir de novo
     if (breakerState === "meia-abertura" && !probeAllowed) {
       incCurtoCircuito();
       incFallback("breaker_meia_abertura_bloqueado");
@@ -125,46 +122,48 @@ async function processQueue() {
       return;
     }
 
-    // Chamada ao upstream (com timeout)
+    // 2. Chamada ao upstream
     const response = await axios.get(UPSTREAM_URL, {
-      params,
-      headers: {
-        "client-id": "1", // obrigatório
-        accept: "application/json",
-      },
+      params: { cpf },
+      headers: { "client-id": "1", accept: "application/json" },
       timeout: REQUEST_TIMEOUT_MS,
     });
 
+    // 3. Salva resposta no cache
+    await cacheService.setCache(cpf, response.data);
+
     incrementarJobs("processed");
     observarLatencia((Date.now() - start) / 1000);
-
     logger.info(`[Scheduler] Job processado: ${job.id}`);
 
-    // Se estava em penalidade, volta para 1s
     if (interval > 1000) adjustScheduler(1000);
 
-    // Sucesso: se estava em meia-abertura, fecha
     if (breakerState === "meia-abertura") {
       closeBreaker();
     } else {
-      // estado normal
       consecutiveFailures = 0;
     }
     probeAllowed = false;
+
   } catch (err) {
     incrementarJobs("failed");
-
     const status = err.response?.status;
     logger.error(`[Scheduler] Erro no job`, { jobId: job.id, status, message: err.message });
 
+    // fallback do cache em caso de erro
+    const fallback = await cacheService.getCache(cpf);
+    if (fallback) {
+      incrementarJobs("fallback_cached");
+      incFallback("cache_fallback");
+      logger.warn(`[Scheduler] Fallback via cache para job ${job.id}`);
+      return;
+    }
+
     if (status === 429) {
-      // penalidade: aumenta para 3s
       adjustScheduler(3000);
       incPenalidadeRateLimit();
-      // 429 conta como falha para o breaker também, para ser conservador
       consecutiveFailures++;
     } else if (err.code === "ECONNABORTED" || /timeout/i.test(err.message)) {
-      // timeout
       incTimeout();
       incFallback("timeout");
       consecutiveFailures++;
@@ -173,19 +172,13 @@ async function processQueue() {
       incFallback("erro_5xx");
       consecutiveFailures++;
     } else {
-      // outros erros: registra
       incErroUpstream(status || "unknown");
       consecutiveFailures++;
     }
 
-    // Transições do breaker
     if (breakerState === "meia-abertura") {
-      // prova falhou → abre novamente
       openBreaker("falha_na_prova");
-    } else if (
-      breakerState === "fechado" &&
-      consecutiveFailures >= BREAKER_FAILURE_THRESHOLD
-    ) {
+    } else if (breakerState === "fechado" && consecutiveFailures >= BREAKER_FAILURE_THRESHOLD) {
       openBreaker(`falhas_consecutivas=${consecutiveFailures}`);
     }
   }
