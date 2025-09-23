@@ -1,7 +1,7 @@
 // src/jobs/scheduler.js
 const axios = require("axios");
 const queueService = require("../services/queueService");
-const cacheService = require("../services/cacheService"); // <-- novo
+const cacheService = require("../services/cacheService");
 const logger = require("../utils/logger");
 const {
   atualizarTamanhoFila,
@@ -31,17 +31,29 @@ const BREAKER_FAILURE_THRESHOLD = parseInt(process.env.BREAKER_FAILURE_THRESHOLD
 const BREAKER_OPEN_WINDOW_MS = parseInt(process.env.BREAKER_OPEN_WINDOW_MS || "10000", 10);
 const SCHEDULER_INITIAL_INTERVAL_MS = parseInt(process.env.SCHEDULER_INITIAL_INTERVAL_MS || "1000", 10);
 
-// Intervalo dinâmico do scheduler
+// Intervalos dinâmicos
 let interval = SCHEDULER_INITIAL_INTERVAL_MS;
 let timer = null;
+let sizeInterval = null;
+
 function startTimer() {
   if (timer) clearInterval(timer);
   timer = setInterval(processQueue, interval);
 }
-if (!(process.env.NODE_ENV === 'test' && process.env.SCHEDULER_FORCE_START !== 'true')) {
-  startTimer();
+
+function startSizeWatcher() {
+  if (sizeInterval) clearInterval(sizeInterval);
+  sizeInterval = setInterval(async () => {
+    const size = await queueService.size();
+    atualizarTamanhoFila(size);
+  }, 2000);
 }
 
+// Só inicia automaticamente se NÃO estiver em ambiente de teste
+if (process.env.NODE_ENV !== "test" || process.env.SCHEDULER_FORCE_START === "true") {
+  startTimer();
+  startSizeWatcher();
+}
 function adjustScheduler(newInterval) {
   if (timer) clearInterval(timer);
   interval = newInterval;
@@ -51,7 +63,7 @@ function adjustScheduler(newInterval) {
 }
 
 // Circuit Breaker
-let breakerState = "fechado"; 
+let breakerState = "fechado";
 let consecutiveFailures = 0;
 let openedAt = 0;
 let probeAllowed = false;
@@ -93,7 +105,7 @@ async function processQueue() {
   const start = Date.now();
 
   try {
-    // 1. Verifica se já existe cache
+    // 1. Verifica cache
     const cached = await cacheService.getCache(cpf);
     if (cached) {
       incrementarJobs("cached");
@@ -101,7 +113,7 @@ async function processQueue() {
       return;
     }
 
-    // Se breaker está aberto
+    // 2. Verifica breaker
     if (breakerState === "aberto") {
       const elapsed = Date.now() - openedAt;
       if (elapsed < BREAKER_OPEN_WINDOW_MS) {
@@ -122,14 +134,14 @@ async function processQueue() {
       return;
     }
 
-    // 2. Chamada ao upstream
+    // 3. Chamada ao upstream
     const response = await axios.get(UPSTREAM_URL, {
       params: { cpf },
       headers: { "client-id": "1", accept: "application/json" },
       timeout: REQUEST_TIMEOUT_MS,
     });
 
-    // 3. Salva resposta no cache
+    // 4. Salva cache
     await cacheService.setCache(cpf, response.data);
 
     incrementarJobs("processed");
@@ -144,13 +156,12 @@ async function processQueue() {
       consecutiveFailures = 0;
     }
     probeAllowed = false;
-
   } catch (err) {
     incrementarJobs("failed");
     const status = err.response?.status;
     logger.error(`[Scheduler] Erro no job`, { jobId: job.id, status, message: err.message });
 
-    // fallback do cache em caso de erro
+    // fallback via cache
     const fallback = await cacheService.getCache(cpf);
     if (fallback) {
       incrementarJobs("fallback_cached");
@@ -184,10 +195,19 @@ async function processQueue() {
   }
 }
 
-// Atualiza a métrica do tamanho da fila
-setInterval(async () => {
-  const size = await queueService.size();
-  atualizarTamanhoFila(size);
-}, 2000);
+function stop() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (sizeInterval) {
+    clearInterval(sizeInterval);
+    sizeInterval = null;
+  }
+}
 
-module.exports = { processQueue };
+function start() {
+  startTimer();
+  startSizeWatcher();
+}
+module.exports = { processQueue, stop, start };

@@ -14,6 +14,11 @@ const jobsTotal = new cliente.Counter({
   labelNames: ['status'],
 });
 
+// 👇 garante séries zeradas
+['accepted', 'dropped', 'processed', 'failed'].forEach(status => {
+  jobsTotal.inc({ status }, 0);
+});
+
 // Latência dos jobs
 const latencyHistogram = new cliente.Histogram({
   name: 'proxy_job_latency_seconds',
